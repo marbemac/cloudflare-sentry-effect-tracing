@@ -1,0 +1,12 @@
+{
+  "extends": "@datanaut/tsconfig/tsconfig.react.json",
+  "include": ["src"],
+  "compilerOptions": {
+    "rootDir": ".",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "types": ["vite/client", "./reset.d.ts"],
+    "paths": {
+      "~/*": ["./src/*"]
+    }
+  }
+}

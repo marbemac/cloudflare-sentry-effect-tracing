@@ -8,12 +8,29 @@
   "main": "worker/index.ts",
   "compatibility_date": "2025-08-08",
   "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
-  // For Sentry
-  "upload_source_maps": true,
+  "assets": {
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
   "version_metadata": {
     "binding": "CF_VERSION_METADATA",
   },
   "observability": {
-    "enabled": true,
+    "enabled": false,
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MY_DURABLE_OBJECT",
+        "class_name": "MyDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MyDurableObject"],
+    },
+  ],
 }

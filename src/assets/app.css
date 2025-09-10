@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+
+@layer base {
+  html,
+  body {
+    @apply min-h-dvh;
+  }
+}
+
+a {
+  @apply text-blue-500;
+
+  &[aria-current='page'] {
+    @apply underline;
+  }
+}

@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
 # Editor directories and files
 .idea
 .DS_Store
@@ -24,3 +33,7 @@ dist-ssr
 # wrangler files
 .wrangler
 .dev.vars*
+
+# Sentry Config File
+.env.sentry-build-plugin
+.env

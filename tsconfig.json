@@ -6,9 +6,9 @@
     },
     {
       "path": "./tsconfig.worker.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
     }
-  ],
-  "compilerOptions": {
-    "types": ["./worker-configuration.d.ts"]
-  }
+  ]
 }

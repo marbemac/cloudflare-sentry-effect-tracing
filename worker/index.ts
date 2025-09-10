@@ -29,10 +29,10 @@ export default withSentry(
 
       integrations: [consoleLoggingIntegration({ levels: ['warn', 'error'] })],
 
-      beforeSendLog: log => {
-        console.log('📋 beforeSendLog', log);
-        return log;
-      },
+      // beforeSendLog: log => {
+      //   console.log('📋 beforeSendLog', log);
+      //   return log;
+      // },
 
       // Using beforeTransaction to log out whatever details we need in
       // order to debug the transaction being sent to Sentry

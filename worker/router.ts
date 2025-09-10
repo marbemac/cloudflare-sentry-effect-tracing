@@ -182,6 +182,16 @@ export const durableObjectForkedEffectExample = base
     await callTraceableRPC(stub.runForkedEffect, {});
   });
 
+export const durableObjectFetchExample = base
+  .route({
+    method: 'GET',
+    path: '/api/durable-object-fetch',
+  })
+  .handler(async () => {
+    const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
+    return stub.fetch(new Request('https://www.example.com'));
+  });
+
 export const router = {
   debug: debug,
   effect: effectExample,
@@ -190,4 +200,5 @@ export const router = {
   durableObjectError: durableObjectErrorExample,
   forkedEffect: forkedEffectExample,
   durableObjectForkedEffect: durableObjectForkedEffectExample,
+  durableObjectFetch: durableObjectFetchExample,
 };

@@ -17,7 +17,7 @@
     "binding": "CF_VERSION_METADATA",
   },
   "observability": {
-    "enabled": false,
+    "enabled": true,
   },
   "vars": {
     // Automatically set by the deploy command

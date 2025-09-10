@@ -60,6 +60,12 @@ class MyDurableObjectBase extends DurableObject<Env> {
       ),
     );
   };
+
+  override async fetch(req) {
+    const res = await this.#runEffect({});
+
+    return Response.json(res);
+  }
 }
 
 export const MyDurableObject = instrumentDurableObjectWithSentry(makeSentryOptions, MyDurableObjectBase);

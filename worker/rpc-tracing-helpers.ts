@@ -1,4 +1,7 @@
-import { continueTrace, flush, getTraceData, startSpan } from '@sentry/cloudflare';
+import { continueTrace, flush, getTraceData, startSpan, withIsolationScope, type Scope } from '@sentry/core';
+import { init } from '@sentry/cloudflare';
+import { makeSentryOptions } from './make-sentry-options.ts';
+import { env } from 'cloudflare:workers';
 
 /**
  * Trace context structure for RPC propagation
@@ -49,9 +52,21 @@ export function callTraceableRPC<A extends Record<string, unknown>, R>(
 }
 
 /**
- * Server-side helper to continue trace propagation in RPC methods.
+ * Set cloud resource context on scope.
+ * Extracted from the Sentry Cloudflare SDK.
+ */
+export function addCloudResourceContext(scope: Scope): void {
+  scope.setContext('cloud_resource', {
+    'cloud.provider': 'cloudflare',
+  });
+}
+
+/**
+ * Server-side helper to continue trace propagation in RPC methods at service boundaries.
  * This function extracts trace context from RPC arguments, continues the distributed trace,
- * and wraps the method execution in a properly traced span.
+ * and wraps the method execution in a properly traced span. It mimics the Sentry Cloudflare SDK
+ * by creating a new isolation scope and client, making it suitable for use at the edge of service
+ * boundaries such as Durable Object RPC methods that are called from other workers or Durable Objects.
  *
  * @param spanName - Name for the span created for this RPC method
  * @param fn - The actual RPC method implementation to execute
@@ -71,30 +86,36 @@ export function continueTraceableRPC<F extends (args: any) => any>(
   fn: F,
   waitUntil: DurableObjectState['waitUntil'],
   args: WithTrace<Parameters<F>[0]>,
-): Promise<Awaited<ReturnType<F>>> {
-  const { [SENTRY_TRACE_PROPERTY]: traceContext, ...cleanArgs } = args as any;
+): Promise<ReturnType<F>> {
+  return withIsolationScope(async isolationScope => {
+    const { [SENTRY_TRACE_PROPERTY]: traceContext, ...cleanArgs } = args as any;
 
-  if (!traceContext?.sentryTrace) {
-    console.warn(`⚠️ continueTraceableRPC: No trace context for ${spanName}, calling fn directly`, traceContext);
-  }
+    const client = init(makeSentryOptions(env));
+    isolationScope.setClient(client);
+    addCloudResourceContext(isolationScope);
 
-  return continueTrace({ sentryTrace: traceContext.sentryTrace || '', baggage: traceContext.baggage }, () =>
-    startSpan(
-      {
-        name: spanName,
-        op: 'rpc',
-        attributes: {
-          'sentry.origin': 'auto.rpc.durable_object',
+    if (!traceContext?.sentryTrace) {
+      console.warn(`⚠️ continueTraceableRPC: No trace context for ${spanName}, calling fn directly`, traceContext);
+    }
+
+    return continueTrace({ sentryTrace: traceContext.sentryTrace || '', baggage: traceContext.baggage }, () =>
+      startSpan(
+        {
+          name: spanName,
+          op: 'rpc',
+          attributes: {
+            'sentry.origin': 'auto.rpc.durable_object',
+          },
         },
-      },
-      async () => {
-        try {
-          const res = await fn(cleanArgs as Parameters<F>[0]);
-          return res;
-        } finally {
-          waitUntil(flush(2000));
-        }
-      },
-    ),
-  ) as Promise<Awaited<ReturnType<F>>>;
+        async () => {
+          try {
+            const res = await fn(cleanArgs as Parameters<F>[0]);
+            return res;
+          } finally {
+            waitUntil(flush(2000));
+          }
+        },
+      ),
+    ) as Promise<Awaited<ReturnType<F>>>;
+  });
 }

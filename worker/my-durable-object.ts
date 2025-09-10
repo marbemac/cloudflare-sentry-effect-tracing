@@ -3,14 +3,12 @@ import { runEffectProgram, runEffectWithError, runForkedEffect, runtime } from '
 import { continueTraceableRPC, type WithTrace } from './rpc-tracing-helpers';
 import { Effect, Exit, Fiber, Scope } from 'effect';
 import { flush } from '@sentry/cloudflare';
-import { instrumentDurableObjectWithSentry } from '@sentry/cloudflare';
-import { makeSentryOptions } from './make-sentry-options.ts';
 
 type ExampleProps = {};
 
 // Not using instrumentDurableObjectWithSentry because it doesn't support traceable RPC methods
 // and it seems to cause the trace propagation on rpc methods that we're doing to not work as expected for some reason
-class MyDurableObjectBase extends DurableObject<Env> {
+export class MyDurableObject extends DurableObject<Env> {
   async runEffect(props: WithTrace<ExampleProps>) {
     return continueTraceableRPC('durable-object-runEffect', this.#runEffect, this.ctx.waitUntil.bind(this.ctx), props);
   }
@@ -60,12 +58,4 @@ class MyDurableObjectBase extends DurableObject<Env> {
       ),
     );
   };
-
-  override async fetch(req) {
-    const res = await this.#runEffect({});
-
-    return Response.json(res);
-  }
 }
-
-export const MyDurableObject = instrumentDurableObjectWithSentry(makeSentryOptions, MyDurableObjectBase);

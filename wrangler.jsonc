@@ -19,6 +19,10 @@
   "observability": {
     "enabled": false,
   },
+  "vars": {
+    // Automatically set by the deploy command
+    "SENTRY_RELEASE": "",
+  },
   "durable_objects": {
     "bindings": [
       {

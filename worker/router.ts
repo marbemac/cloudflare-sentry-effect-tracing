@@ -81,6 +81,18 @@ export interface RootContext {
 
 const base = os.$context<RootContext>().use(sentryMiddleware);
 
+export const debug = base
+  .route({
+    method: 'GET',
+    path: '/api/debug',
+  })
+  .handler(async () => {
+    return {
+      sentryRelease: env.SENTRY_RELEASE,
+      versionMetadata: env.CF_VERSION_METADATA,
+    };
+  });
+
 export const effectExample = base
   .route({
     method: 'GET',
@@ -171,6 +183,7 @@ export const durableObjectForkedEffectExample = base
   });
 
 export const router = {
+  debug: debug,
   effect: effectExample,
   effectWithError: effectExampleWithError,
   durableObject: durableObjectExample,

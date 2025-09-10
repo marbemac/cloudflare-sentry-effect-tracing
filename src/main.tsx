@@ -23,7 +23,7 @@ Sentry.init({
   sendDefaultPii: true,
   // ignore asset loading spans in development
   ignoreSpans: import.meta.env.DEV ? [{ op: 'resource.script' }] : [],
-  environment: import.meta.env.DEV ? 'development' : 'production',
+  environment: import.meta.env.MODE,
   integrations: [
     Sentry.tanstackRouterBrowserTracingIntegration(router),
     Sentry.thirdPartyErrorFilterIntegration({

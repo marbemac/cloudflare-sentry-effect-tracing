@@ -5,7 +5,7 @@ import { SentryTracerLive, withTransactionSpanScoped } from './effect-sentry-tra
 const childEffect = Effect.gen(function* () {
   yield* Effect.sleep('10 millis');
 }).pipe(
-  Effect.delay('100 millis'),
+  Effect.delay('50 millis'),
   Effect.withSpan('childEffect', {
     attributes: {
       'span.level': 2,
@@ -65,18 +65,9 @@ const parentWithError = Effect.gen(function* () {
 );
 
 const effectWithBackgroundFork = Effect.fnUntraced(function* () {
-  const cs = yield* Effect.currentSpan;
-  console.log('🔥 Outside background fiber', cs.spanId);
-
   const backgroundFiber = yield* Effect.gen(function* () {
-    const cs = yield* Effect.currentSpan;
-    console.log('🔥 Inside background fiber', cs.spanId);
-
     yield* Effect.sleep('1 second');
-
     yield* parentEffect;
-
-    console.log('🔥 Background fiber finished');
   }).pipe(Effect.forkScoped);
 
   return { backgroundFiber };

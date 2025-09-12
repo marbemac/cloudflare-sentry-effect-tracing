@@ -20,38 +20,6 @@ type SentryTraceKey = typeof SENTRY_TRACE_PROPERTY;
 export type WithTrace<T extends Record<string, unknown>> = T & { [K in SentryTraceKey]?: TraceContext };
 
 /**
- * Client-side helper to make RPC calls with distributed trace propagation.
- * This function extracts the current trace context and embeds it in the RPC arguments
- * so that the receiving service can continue the distributed trace.
- *
- * @param fn - The RPC function to call (e.g., durableObjectStub.methodName)
- * @param args - Arguments to pass to the RPC method
- * @returns Promise resolving to the RPC method result
- *
- * @example
- * ```typescript
- * const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
- * const result = await callTraceableRPC(stub.runEffect, { someParam: 'value' });
- * ```
- */
-export function callTraceableRPC<A extends Record<string, unknown>, R>(
-  fn: (arg: WithTrace<A>) => Promise<R> | R,
-  args: A,
-): Promise<R> {
-  const traceData = getTraceData();
-
-  const argsWithTrace = {
-    ...args,
-    [SENTRY_TRACE_PROPERTY]: {
-      sentryTrace: traceData['sentry-trace'],
-      baggage: traceData.baggage,
-    } as TraceContext,
-  } as WithTrace<A>;
-
-  return fn(argsWithTrace) as Promise<R>;
-}
-
-/**
  * Set cloud resource context on scope.
  * Extracted from the Sentry Cloudflare SDK.
  */
@@ -61,61 +29,117 @@ export function addCloudResourceContext(scope: Scope): void {
   });
 }
 
-/**
- * Server-side helper to continue trace propagation in RPC methods at service boundaries.
- * This function extracts trace context from RPC arguments, continues the distributed trace,
- * and wraps the method execution in a properly traced span. It mimics the Sentry Cloudflare SDK
- * by creating a new isolation scope and client, making it suitable for use at the edge of service
- * boundaries such as Durable Object RPC methods that are called from other workers or Durable Objects.
- *
- * @param spanName - Name for the span created for this RPC method
- * @param fn - The actual RPC method implementation to execute
- * @param waitUntil - Cloudflare's waitUntil function for background tasks (e.g., flushing traces)
- * @param args - RPC arguments with embedded trace context
- * @returns Promise resolving to the RPC method result
- *
- * @example
- * ```typescript
- * async runEffect(props: WithTrace<ExampleProps>) {
- *   return continueTraceableRPC('runEffect', this.#runEffect, this.ctx.waitUntil.bind(this.ctx), props);
- * }
- * ```
- */
-export function continueTraceableRPC<F extends (args: any) => any>(
-  spanName: string,
-  fn: F,
-  waitUntil: DurableObjectState['waitUntil'],
-  args: WithTrace<Parameters<F>[0]>,
-): Promise<ReturnType<F>> {
-  return withIsolationScope(async isolationScope => {
-    const { [SENTRY_TRACE_PROPERTY]: traceContext, ...cleanArgs } = args as any;
+export function makeTraceableRPCHelpers({ serviceName }: { serviceName: string }) {
+  return {
+    /**
+     * Client-side helper to make RPC calls with distributed trace propagation.
+     * This function extracts the current trace context and embeds it in the RPC arguments
+     * so that the receiving service can continue the distributed trace.
+     *
+     * @param stub - The Durable Object stub
+     * @param methodName - Name of the method to call on the stub
+     * @param args - Arguments to pass to the RPC method
+     * @returns Promise resolving to the RPC method result
+     *
+     * @example
+     * ```typescript
+     * const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
+     * const result = await callTraceableRPC(stub, 'runEffect', {});
+     * ```
+     */
+    callTraceableRPC: function callTraceableRPC<
+      T,
+      K extends Exclude<keyof T & string, '__DURABLE_OBJECT_BRAND' | 'connect' | 'fetch' | 'id' | 'name'>,
+      A extends T[K] extends (arg: WithTrace<infer P>) => any ? P : never,
+      CleanA extends Omit<A, '__sentryTrace'>,
+      R extends T[K] extends (arg: any) => Promise<infer U> | infer U ? U : never,
+    >(stub: T, methodName: K, ...args: {} extends CleanA ? [] : [CleanA]): Promise<R> {
+      const traceData = getTraceData();
+      const methodArgs = args[0] ?? {};
 
-    const client = init(makeSentryOptions(env));
-    isolationScope.setClient(client);
-    addCloudResourceContext(isolationScope);
+      const argsWithTrace = {
+        ...methodArgs,
+        [SENTRY_TRACE_PROPERTY]: {
+          sentryTrace: traceData['sentry-trace'],
+          baggage: traceData.baggage,
+        } as TraceContext,
+      } as WithTrace<A>;
 
-    if (!traceContext?.sentryTrace) {
-      console.warn(`⚠️ continueTraceableRPC: No trace context for ${spanName}, calling fn directly`, traceContext);
-    }
+      const fn = stub[methodName] as any;
+      const spanName = `${serviceName}.${methodName}`;
 
-    return continueTrace({ sentryTrace: traceContext.sentryTrace || '', baggage: traceContext.baggage }, () =>
-      startSpan(
+      return startSpan(
         {
           name: spanName,
-          op: 'rpc',
+          op: 'http.client',
           attributes: {
             'sentry.origin': 'auto.rpc.durable_object',
           },
         },
-        async () => {
-          try {
-            const res = await fn(cleanArgs as Parameters<F>[0]);
-            return res;
-          } finally {
-            waitUntil(flush(2000));
-          }
-        },
-      ),
-    ) as Promise<Awaited<ReturnType<F>>>;
-  });
+        () => fn(argsWithTrace),
+      ) as Promise<R>;
+    },
+
+    /**
+     * Server-side helper to continue trace propagation in RPC methods at service boundaries.
+     * This function extracts trace context from RPC arguments, continues the distributed trace,
+     * and wraps the method execution in a properly traced span. It mimics the Sentry Cloudflare SDK
+     * by creating a new isolation scope and client, making it suitable for use at the edge of service
+     * boundaries such as Durable Object RPC methods that are called from other workers or Durable Objects.
+     *
+     * @param methodName - Name of the method associated with this RPC call
+     * @param fn - The actual RPC method implementation to execute
+     * @param waitUntil - Cloudflare's waitUntil function for background tasks (e.g., flushing traces)
+     * @param args - RPC arguments with embedded trace context
+     * @returns Promise resolving to the RPC method result
+     *
+     * @example
+     * ```typescript
+     * async runEffect(props: WithTrace<ExampleProps>) {
+     *   return continueTraceableRPC('runEffect', this.#runEffect, this.ctx.waitUntil.bind(this.ctx), props);
+     * }
+     * ```
+     */
+    continueTraceableRPC: function continueTraceableRPC<F extends (args: any) => any>(
+      methodName: string,
+      fn: F,
+      waitUntil: DurableObjectState['waitUntil'],
+      args: WithTrace<Parameters<F>[0]>,
+    ): Promise<ReturnType<F>> {
+      return withIsolationScope(async isolationScope => {
+        const { [SENTRY_TRACE_PROPERTY]: traceContext, ...cleanArgs } = args as any;
+
+        const client = init(makeSentryOptions(env));
+        isolationScope.setClient(client);
+        addCloudResourceContext(isolationScope);
+
+        if (!traceContext?.sentryTrace) {
+          console.warn(
+            `⚠️ continueTraceableRPC: No trace context for ${methodName}, calling fn directly`,
+            traceContext,
+          );
+        }
+
+        return continueTrace({ sentryTrace: traceContext.sentryTrace || '', baggage: traceContext.baggage }, () =>
+          startSpan(
+            {
+              name: `${serviceName}.${methodName}`,
+              op: 'http.server',
+              attributes: {
+                'sentry.origin': 'auto.rpc.durable_object',
+              },
+            },
+            async () => {
+              try {
+                const res = await fn(cleanArgs as Parameters<F>[0]);
+                return res;
+              } finally {
+                waitUntil(flush(2000));
+              }
+            },
+          ),
+        ) as Promise<Awaited<ReturnType<F>>>;
+      });
+    },
+  };
 }

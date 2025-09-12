@@ -5,8 +5,13 @@ import * as Runtime from 'effect/Runtime';
 import * as Cause from 'effect/Cause';
 
 import { runEffectProgram, runEffectWithError, runForkedEffect, runtime } from './effect-program.ts';
-import { callTraceableRPC } from './rpc-tracing-helpers.ts';
 import { Effect, Exit, Fiber, Scope } from 'effect';
+import { callTraceableRPC } from './my-durable-object.ts';
+
+function sleepRandom(): Promise<void> {
+  const ms = Math.floor(Math.random() * (100 - 10 + 1)) + 10;
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function unwrapFiberFailure(error: unknown): Error {
   if (Runtime.isFiberFailure(error)) {
@@ -58,7 +63,7 @@ function unwrapFiberFailure(error: unknown): Error {
   return new Error(String(error));
 }
 
-const sentryMiddleware = os.middleware(async ({ next }) => {
+const sentryMiddleware = os.middleware(async function sentryMiddleware({ next }) {
   try {
     return await next();
   } catch (error) {
@@ -75,23 +80,14 @@ const sentryMiddleware = os.middleware(async ({ next }) => {
   }
 });
 
+// Configures the name used for the tracing span associated with this middleware
+Object.defineProperty(sentryMiddleware, 'name', { value: 'sentryMiddleware', configurable: true });
+
 export interface RootContext {
   waitUntil: DurableObjectState['waitUntil'];
 }
 
 const base = os.$context<RootContext>().use(sentryMiddleware);
-
-export const debug = base
-  .route({
-    method: 'GET',
-    path: '/api/debug',
-  })
-  .handler(async () => {
-    return {
-      sentryRelease: env.SENTRY_RELEASE,
-      versionMetadata: env.CF_VERSION_METADATA,
-    };
-  });
 
 export const effectExample = base
   .route({
@@ -99,7 +95,9 @@ export const effectExample = base
     path: '/api/effect',
   })
   .handler(async () => {
+    await sleepRandom();
     await runEffectProgram();
+    await sleepRandom();
 
     return [{ ok: true }];
   });
@@ -110,7 +108,9 @@ export const effectExampleWithError = base
     path: '/api/effect-error',
   })
   .handler(async () => {
+    await sleepRandom();
     await runEffectWithError();
+    await sleepRandom();
 
     return [{ ok: true }];
   });
@@ -121,16 +121,15 @@ export const durableObjectExample = base
     path: '/api/durable-object',
   })
   .handler(async () => {
+    await sleepRandom();
+
     const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
 
-    try {
-      // Use callTraceableRPC to propagate trace context to the Durable Object
-      const res = await callTraceableRPC(stub.runEffect, {});
-      return res;
-    } catch (error) {
-      console.error('Error calling runEffect:', error);
-      return { error: 'Failed to call runEffect' };
-    }
+    const res = await callTraceableRPC(stub, 'runEffect');
+
+    await sleepRandom();
+
+    return res;
   });
 
 export const durableObjectErrorExample = base
@@ -139,9 +138,13 @@ export const durableObjectErrorExample = base
     path: '/api/durable-object-error',
   })
   .handler(async () => {
+    await sleepRandom();
+
     const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
 
-    const res = await callTraceableRPC(stub.runEffectWithError, {});
+    const res = await callTraceableRPC(stub, 'runEffectWithError');
+
+    await sleepRandom();
 
     return res;
   });
@@ -152,7 +155,11 @@ export const forkedEffectExample = base
     path: '/api/forked-effect',
   })
   .handler(async ({ context }) => {
+    await sleepRandom();
+
     const res = await runForkedEffect();
+
+    await sleepRandom();
 
     context.waitUntil(
       runtime.runPromise(
@@ -177,13 +184,16 @@ export const durableObjectForkedEffectExample = base
     path: '/api/durable-object-forked-effect',
   })
   .handler(async () => {
+    await sleepRandom();
+
     const stub = env.MY_DURABLE_OBJECT.getByName('static-name');
 
-    await callTraceableRPC(stub.runForkedEffect, {});
+    await sleepRandom();
+
+    return callTraceableRPC(stub, 'runForkedEffect', { justToShowThatTypesWork: true });
   });
 
 export const router = {
-  debug: debug,
   effect: effectExample,
   effectWithError: effectExampleWithError,
   durableObject: durableObjectExample,

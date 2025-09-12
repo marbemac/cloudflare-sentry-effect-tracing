@@ -59,8 +59,6 @@ export const createSentryLogger = (minLevel: LogLevel.LogLevel = LogLevel.Warnin
         extra['cause'] = String(cause);
       }
 
-      console.log('📋 EFFECT LOGGER', { message, extra });
-
       // Format the message
       let formattedMessage: string;
 

@@ -1,0 +1,38 @@
+diff --git a/build/cjs/index.js b/build/cjs/index.js
+index 702f529557712bd2214e6136e82e03fd69e31340..5c723f891c8dfe208f6f1a7190f88f55b83302c7 100644
+--- a/build/cjs/index.js
++++ b/build/cjs/index.js
+@@ -95,6 +95,7 @@ exports.sentryPagesPlugin = pagesPlugin.sentryPagesPlugin;
+ exports.wrapRequestHandler = request.wrapRequestHandler;
+ exports.CloudflareClient = client.CloudflareClient;
+ exports.getDefaultIntegrations = sdk.getDefaultIntegrations;
++exports.init = sdk.init;
+ exports.fetchIntegration = fetch.fetchIntegration;
+ exports.vercelAIIntegration = vercelai.vercelAIIntegration;
+ exports.instrumentD1WithSentry = d1.instrumentD1WithSentry;
+diff --git a/build/esm/index.js b/build/esm/index.js
+index 7018e7c97d82d9b60d141af3a01b6692f3d5ebea..db4c7fc1eea19edd8b5bfaae4d7dc3020020e337 100644
+--- a/build/esm/index.js
++++ b/build/esm/index.js
+@@ -6,7 +6,7 @@ export { instrumentDurableObjectWithSentry } from './durableobject.js';
+ export { sentryPagesPlugin } from './pages-plugin.js';
+ export { wrapRequestHandler } from './request.js';
+ export { CloudflareClient } from './client.js';
+-export { getDefaultIntegrations } from './sdk.js';
++export { getDefaultIntegrations, init } from './sdk.js';
+ export { fetchIntegration } from './integrations/fetch.js';
+ export { vercelAIIntegration } from './integrations/tracing/vercelai.js';
+ export { instrumentD1WithSentry } from './d1.js';
+diff --git a/build/types/index.d.ts b/build/types/index.d.ts
+index 831a1a50a4d167e5dd4e7968abf7fb2249c3e8f4..ed74d1400ef48aa330bd67b98381548cd43c1f2d 100644
+--- a/build/types/index.d.ts
++++ b/build/types/index.d.ts
+@@ -7,7 +7,7 @@ export { instrumentDurableObjectWithSentry } from './durableobject';
+ export { sentryPagesPlugin } from './pages-plugin';
+ export { wrapRequestHandler } from './request';
+ export { CloudflareClient } from './client';
+-export { getDefaultIntegrations } from './sdk';
++export { getDefaultIntegrations, init } from './sdk';
+ export { fetchIntegration } from './integrations/fetch';
+ export { vercelAIIntegration } from './integrations/tracing/vercelai';
+ export { instrumentD1WithSentry } from './d1';

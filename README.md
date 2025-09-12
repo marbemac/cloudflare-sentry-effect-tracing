@@ -37,3 +37,5 @@ curl -i http://localhost:8787/api/durable-object-forked-effect
 Tried many things to get the effect open telemetry tracer working with all of these examples, but no luck.
 
 Turns out making a custom tracer for Sentry was easy. It's over here -> worker/effect-sentry-tracer.ts.
+
+I needed to patch the sentry/cloudflare package to expose `init`, so that we can use it in our continueTrace helper.
